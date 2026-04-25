@@ -1,43 +1,32 @@
-# .release/manifest.yml — see S:\Pohoda_APPS\IES_RELEASE_PIPELINE.md §3
-service: pohodadigi_ocrworker
-display_name: "PohodaDigi_OcrWorker"
-runtime: TODO       # dotnet8-win-x64 | dotnet8-linux-x64 | python3.12
-entry: TODO         # e.g. publish/PohodaDigi.exe
-health: "http://localhost:PORT/health"
-http_port: TODO
+service: iesocr-worker
+display_name: "IES-OCR worker (FastAPI, docling/tesseract/paddleocr)"
+runtime: python3.12
+entry: app.py
+health: "http://localhost:5090/health"
+http_port: 5090
 
 build:
   command: |
-    dotnet publish -c Release -r win-x64 --self-contained true -o publish --nologo
+    # Python — package source + freeze requirements (venv recreated on target).
+    pip freeze > requirements.lock || true
+    mkdir -p publish && cp -r app.py engines template_runner.py requirements.lock publish/ 2>/dev/null || true
   artifact: publish/
 
 install_layout:
   - src: publish/
     dest: current/
     preserve_on_update: false
-  - src: config.example.json
-    dest: config/config.json
-    preserve_on_update: true
-    mode: 0640
-
-secrets:
-  # list every required secret, where it is read from on target
-  # - key: Ocr:AnthropicApiKey
-  #   source: dpapi:C:\ProgramData\ies\${service}\anthropic.dpapi
 
 service:
-  systemd_unit: pohodadigi_ocrworker.service
-  nssm_name: PohodaDigi_OcrWorker
+  systemd_unit: iesocr-worker.service
+  nssm_name: IesOcrWorker
   stop_timeout: 30
 
 migrations:
-  kind: sql          # or: "none" if no migrations
-  path: Migrations/*.sql
-  target: TODO
-  runner: sqlcmd
+  kind: none
 
 update:
   strategy: rolling
-  health_check: "curl -sf http://localhost:PORT/health"
+  health_check: "curl -sf http://localhost:5090/health"
   health_timeout: 60
   rollback_on_failure: true
