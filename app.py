@@ -34,7 +34,7 @@ logging.basicConfig(
 )
 log = logging.getLogger("iesocr")
 
-app = FastAPI(title="IES-OCR worker", version="0.1", default_response_class=ORJSONResponse)
+app = FastAPI(title="IES-OCR worker", version="0.1.1", default_response_class=ORJSONResponse)
 
 # ============================================================ models
 
