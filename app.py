@@ -139,12 +139,12 @@ def _pick_engine(mime: Optional[str], file_name: str) -> str:
     mt = (mime or "").lower()
     ext = os.path.splitext(file_name)[1].lower()
 
-    # Office formats → docling handles them
-    if ext in (".docx", ".pptx", ".html", ".md"):
+    # Office formats → docling handles them natively (incl. xlsx as markdown tables)
+    if ext in (".pdf", ".docx", ".doc", ".pptx", ".ppt", ".xlsx", ".xls",
+               ".html", ".htm", ".md"):
         return "docling"
-
-    # PDFs: try docling first (digital PDFs are ~20x faster there)
-    if ext == ".pdf" or "pdf" in mt:
+    if "pdf" in mt or "spreadsheet" in mt or "wordprocessing" in mt or \
+       "presentation" in mt or "html" in mt:
         return "docling"
 
     # Images: tesseract is fastest baseline; paddleocr better on scans

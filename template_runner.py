@@ -99,14 +99,24 @@ def _regex_after(text: str, anchor: Optional[str], regex: Optional[str],
 
 
 def _after_label(text: str, anchor: Optional[str]) -> Optional[str]:
+    """Return value following ``anchor``. Handles plain rows + markdown tables."""
     if not anchor: return None
-    at = _find_anchor(text, anchor)
-    if at < 0: return None
-    tail = text[at + len(anchor):].lstrip(" \t:| ")
-    # take up to end of line (or 200 chars max)
-    nl = tail.find("\n")
-    val = (tail[:nl] if nl >= 0 else tail[:200]).strip()
-    return val or None
+    extent = _find_anchor_extent(text, anchor)
+    if not extent: return None
+    tail = text[extent[1]:]
+    nl = tail.find(chr(10))
+    line_tail = tail[:nl] if nl >= 0 else tail[:500]
+    # Markdown-table layout (docling output for xlsx/docx) — pick first non-empty
+    # non-separator non-anchor cell.
+    if "|" in line_tail:
+        for c in (cc.strip() for cc in line_tail.split("|")):
+            if not c: continue
+            if re.fullmatch(r"[-:\s]+", c): continue
+            if _normalize(c).startswith(_normalize(anchor)): continue
+            return c[:200]
+        return None
+    val = line_tail.lstrip(" 	:| ").strip()
+    return (val[:200] or None)
 
 
 def _cell_to_right_of(blocks: List[Dict], anchor: Optional[str]) -> Optional[str]:
@@ -214,8 +224,34 @@ def _apply_one(v: str, fn: str, args: Dict) -> Any:
 
 
 def _find_anchor(text: str, anchor: str) -> int:
+    """Return offset in `text` where (normalized) `anchor` starts, or -1.
+    Search is diacritic-folded + lowercase; offset is in ORIGINAL text indices
+    because NFKD normalisation rarely changes character count for Latin scripts
+    (each combining mark is removed but the base character keeps position).
+    For tighter offset alignment use _find_anchor_extent() below.
+    """
     nt = _normalize(text); na = _normalize(anchor)
     return nt.find(na)
+
+
+def _find_anchor_extent(text: str, anchor: str):
+    """Return (start, end) in ORIGINAL `text` matching `anchor` diacritic-fold.
+    end-start gives the actual length to skip; differs from len(anchor) when
+    diacritic-stripped text shifts character counts.
+    """
+    nt = _normalize(text); na = _normalize(anchor)
+    at = nt.find(na)
+    if at < 0: return None
+    # Walk original text mapping normalized index → original index
+    o = 0; n = 0
+    while o < len(text) and n < at:
+        nc = _normalize(text[o])
+        n += len(nc); o += 1
+    start = o
+    while o < len(text) and (n - at) < len(na):
+        nc = _normalize(text[o])
+        n += len(nc); o += 1
+    return (start, o)
 
 
 def _normalize(s: str) -> str:
